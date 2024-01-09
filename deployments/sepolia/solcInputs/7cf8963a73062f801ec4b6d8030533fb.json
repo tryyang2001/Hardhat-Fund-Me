@@ -1,0 +1,41 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\ninterface AggregatorV3Interface {\n  function decimals() external view returns (uint8);\n\n  function description() external view returns (string memory);\n\n  function version() external view returns (uint256);\n\n  function getRoundData(\n    uint80 _roundId\n  ) external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\n\n  function latestRoundData()\n    external\n    view\n    returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\n}\n"
+    },
+    "contracts/EthPriceConverter.sol": {
+      "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.0;\r\n\r\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\r\n\r\nlibrary EthPriceConverter {\r\n    /**\r\n        * @dev Returns the latest price of ETH -> USD\r\n     */\r\n    function getCurrentPriceTrend(AggregatorV3Interface priceFeed) internal view returns(uint256) {\r\n        (, int256 price,,,) = priceFeed.latestRoundData();\r\n        return uint256(price);\r\n    }\r\n\r\n    /**\r\n        * @dev Returns the amount of ETH in USD\r\n     */\r\n    function convertToUSD(uint256 ethAmount, AggregatorV3Interface priceFeed) internal view returns(uint256) {\r\n        uint256 ethPrice = getCurrentPriceTrend(priceFeed);\r\n        uint256 ethAmountInUSD = (ethPrice * ethAmount) / 1000000000000000000;\r\n        return ethAmountInUSD;\r\n    }\r\n}"
+    },
+    "contracts/FundMe.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\nimport \"./EthPriceConverter.sol\";\n\n/**\n    * @title FundMe\n    * @dev This contract is used to fund the contract with ETH\n    * @author tryyang2001\n    * @notice You can use this contract for only the most basic simulation\n    * @dev All function calls are currently implemented without side effects\n */\ncontract FundMe {\n    // library declaration\n    using EthPriceConverter for AggregatorV3Interface;\n\n    // constants\n    uint256 public constant MIN_FUND_IN_USD = 50;\n\n    // variables\n    // (funder => amount in wei)\n    mapping(address => uint256) private addressToAmountFunded;\n    address[] private funders;\n    address private immutable owner;\n    AggregatorV3Interface private priceFeed;\n    address private immutable priceFeedAddress;\n\n    constructor(address _priceFeed) {\n        owner = msg.sender;\n        priceFeed = AggregatorV3Interface(_priceFeed);\n        priceFeedAddress = _priceFeed;\n    }\n\n    function fund() public payable {\n        require(EthPriceConverter.convertToUSD(msg.value, priceFeed) >= MIN_FUND_IN_USD, \"The transaction amount is too low\");\n\n        // successful transaction\n        addressToAmountFunded[msg.sender] += msg.value;\n        funders.push(msg.sender);\n    }\n\n    function withdraw() public restrictToOwner {\n        // use call for reliable transaction\n        (bool success, ) = payable(msg.sender).call{value: address(this).balance}(\"\");\n        require(success, \"Failed to withdraw funds from the contract\");\n\n        // reset the mapping\n        for (uint256 i = 0; i < funders.length; i++) {\n            addressToAmountFunded[funders[i]] = 0;\n        }\n    }\n\n    // getter\n    function getPriceFeedAddress() public view returns(address) {\n        return priceFeedAddress;\n    }\n    function getPriceFeedVersion() public view returns(uint256) {\n        return priceFeed.version();\n    }\n\n    function getOwner() public view returns(address) {\n        return owner;\n    }\n\n    function getFunder(uint256 index) public view returns(address) {\n        return funders[index];\n    }\n\n    function getAmountFunded(address funder) public view returns(uint256) {\n        return addressToAmountFunded[funder];\n    }\n\n    modifier restrictToOwner() {\n        require(msg.sender == owner, \"You are not the owner of the contract\");\n        _;\n    }\n\n}"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
